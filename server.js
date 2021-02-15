@@ -27,7 +27,14 @@ app.get('/api/employees', async (req, res, next) => {
   try {
     res.send(
       await Employee.findAll({
-        include: [],
+        include: [
+          {
+            model: Employee,
+            as: 'supervisor',
+          },
+          Employee,
+          Department,
+        ],
       })
     );
   } catch (error) {
@@ -51,15 +58,18 @@ const Employee = db.define('employee', {
   },
 });
 
-Department.belongsTo(Employee, { as: 'manager' });
 // to avoid the Department having both a managerId and an employeeId,
 //when you do Employee.hasMany(Department), you must tell the association that
 // managerId is the foreignKey, since the alias has been set up above.
+Department.belongsTo(Employee, { as: 'manager' });
 Employee.hasMany(Department, { foreignKey: 'managerId' });
+
+Employee.belongsTo(Employee, { as: 'supervisor' });
+Employee.hasMany(Employee, { foreignKey: 'supervisorId' });
 
 const syncAndSeed = async () => {
   await db.sync({ force: true });
-  const [moe, lucy, hr, engineering] = await Promise.all([
+  const [moe, lucy, larry, hr, engineering] = await Promise.all([
     /*
     .create() combines .build() and .save(), so you don't need to write
     .save() below. In other words, .create() both creates a javaScript object
@@ -68,6 +78,7 @@ const syncAndSeed = async () => {
     */
     Employee.create({ name: 'moe' }),
     Employee.create({ name: 'lucy' }),
+    Employee.create({ name: 'larry' }),
     Department.create({ name: 'hr' }),
     Department.create({ name: 'engineering' }),
   ]);
@@ -76,6 +87,9 @@ const syncAndSeed = async () => {
   hr.managerId = lucy.id;
   //update the hr table with the hr instance's updated values
   await hr.save();
+  moe.supervisorId = lucy.id;
+  larry.supervisorId = lucy.id;
+  await Promise.all([moe.save(), larry.save()]);
 };
 
 const init = async () => {
